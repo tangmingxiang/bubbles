@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>泡泡龙</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    html,
+    body {
+      overflow: hidden;
+      height: 100%;
+    }
+
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .container {
+      display: flex;
+      width: 655px;
+      height: 640px;
+      box-shadow: 0 0 0 4px #ccc;
+    }
+
+    .game-area {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      width: 440px;
+      height: 100%;
+      border-right: 2px solid #ccc;
+    }
+
+    .ball-area {
+      z-index: 1;
+      position: relative;
+      flex: 1;
+    }
+
+    .arrow-area {
+      position: relative;
+      display: flex;
+      justify-content: center;
+      height: 80px;
+      border-top: 2px solid #ccc;
+    }
+
+    .arrow {
+      position: absolute;
+      width: 60px;
+      height: 86px;
+      background: url(images/arrow.png) no-repeat top/cover;
+      transform-origin: 30px 56px;
+    }
+
+    .score-area {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      flex: 1;
+      height: 100%;
+      font-size: 20px;
+      font-weight: 700;
+      text-align: center;
+      user-select: none;
+    }
+
+    .score-area .start {
+      width: 120px;
+      height: 45px;
+      line-height: 42px;
+      text-align: center;
+      color: white;
+      background-color: #6698cb;
+      border: 1px solid rgba(0, 0, 0, .21);
+      border-bottom: 4px solid rgba(0, 0, 0, .21);
+      border-radius: 4px;
+      text-shadow: 0 1px 0 rgba(0, 0, 0, .15);
+      cursor: pointer;
+    }
+
+    .score-area .start:active {
+      background-color: #608FBF;
+    }
+
+    .score-area p {
+      padding: 60px 0 8px;
+      color: #608FBF;
+    }
+
+    .score-area .score {
+      font-size: 32px;
+      color: #72B08E;
+    }
+
+
+    .ball {
+      position: absolute;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background-color: #f0d264;
+      text-align: center;
+      line-height: 44px;
+      color: #fff;
+      box-shadow: -2px -2px 12px rgba(100, 100, 100, .7) inset;
+    }
+
+    .ball.active {
+      color: orange;
+      font-weight: 900;
+      background-color: #222 !important;
+    }
+
+    .ball.lose {
+      color: #222;
+      font-weight: 900;
+      background-color: rgb(34, 34, 34) !important;
+    }
+
+    .bullet {
+      /* display: none; */
+      position: absolute;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background-color: #f0d264;
+      box-shadow: -2px -2px 12px rgba(100, 100, 100, .7) inset;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="game-area">
+      <div class="ball-area">
+        <div class="arrow"></div>
+        <div class="bullet"></div>
+      </div>
+      <div class="arrow-area">
+        
+      </div>
+    </div>
+    <div class="score-area">
+      <div class="start">开始游戏</div>
+      <p>当前分数</p>
+      <span class="score">0</span>
+    </div>
+  </div>
+  <script src="index.js"></script>
+  <script>
+    const oCon = document.querySelector('.container');
+    const oBallArea = document.querySelector('.ball-area');
+    const oGameArea = document.querySelector('.game-area');
+    const oArrow = document.querySelector('.arrow');
+    const oBullet = document.querySelector('.bullet');
+    const oStart = document.querySelector('.start');
+    const oScore = document.querySelector('.score');
+    const ballSize = 44,
+          maxRows = ~~(oBallArea.offsetHeight / ballSize) + 2,
+          maxColumns = ~~(oBallArea.offsetWidth / ballSize);
+    // ballsData 存储球体数据,在 init() 函数进行初始化
+    const ballsData = [];
+    // rowComp 行补偿: 相邻球的行与中心球的行之间的差值
+    const rowComp = {
+      t: -1,
+      m: 0,
+      b: 1
+    }
+    // 子弹运行速率
+    const speed = 20;
+    // 子弹是否在运行中
+    window.isBulletMoving = false;
+    // 记分
+    window.count = 0;
+    // 游戏是否开始
+    window.isStart = false;
+    // 是否有小球在掉落
+    window.isDropOff = false;
+    // 间隔一定时间添加小球的定时器 在 getShowBall 函数中使用
+    let inteval = null;
+    
+    // 单击开始游戏的监听函数
+    oStart.addEventListener('click',function(){
+      initArrow();
+      initBullet();
+      count = 0;
+      oScore.innerText = count;
+      ballsData.filter(item => item.opacity !== 0).forEach(item => {
+        item.ele.style.opacity = 0;
+        item.opacity = 0;
+      })
+      let arr = [];
+      while(arr.length < 6){
+        let random = ~~(Math.random()*10);
+        if(arr.indexOf(random) === -1){
+          arr.push(random);
+        }
+      }
+      arr.forEach(item => {
+        showBall(item);
+      })
+      isStart = true;
+      getShowBall();
+    })
+
+
+    // 炮台随着鼠标在游戏区域移动而转换角度
+    oGameArea.addEventListener('mousemove', function(e){
+      let eX = e.clientX, eY = e.clientY;
+      // 还是以炮台的中心计算旋转角度更合适一点,因为炮台是不会动的, 而子弹在移动
+      // let {left:oX, top:oY} = getPosition(oBullet);
+      // oX += oBullet.offsetWidth / 2;
+      // oY += oBullet.offsetHeight / 2;
+      let { top: oY, left: oX } = getPosition(oArrow);
+      oX += oArrow.offsetWidth / 2;
+      oY += 56;
+
+      //计算箭头旋转中心与鼠标点的夹角
+      let iAngle = Math.abs(Math.atan2(eY - oY, eX - oX) * 180 / Math.PI);
+      iAngle = Math.min(170, Math.max(10, iAngle));
+      iAngle -= 90;
+      iAngle = -iAngle;
+      oArrow.style.transform = `rotate(${iAngle}deg)`
+    })
+
+    // 发射子弹, 检测碰撞
+    oGameArea.addEventListener('click', function(e){
+      if(!isStart){
+        alert('请先点击开始按钮');
+        return false;
+      }
+      if(isBulletMoving){
+        return false;
+      }
+      isBulletMoving = true;
+      let bulletColor = oBullet.style.backgroundColor;
+      let iAngle = Number(oArrow.style.transform.match(/rotate\((.+)deg\)/)?.[1]);
+      if(!Number(iAngle)){
+        isBulletMoving = false;
+        return false;
+      }
+      let flag = 1;
+      let timer;
+      iAngle = iAngle * Math.PI / 180;
+      clearInterval(timer);
+      timer = setInterval(function(){
+        let collBallIdx = getBallCollisionIdx();
+        // 小球发送碰撞了, 但返回为空, 说明没有位置可以放置小球了, 游戏结束
+        if(collBallIdx === null){
+          clearInterval(timer);
+          let x = oBullet.offsetLeft, y = oBullet.offsetTop;
+          oBullet.style.left = x + flag * Math.sin(iAngle) * speed + 'px';
+          oBullet.style.top = y -  Math.cos(iAngle) * speed + 'px';
+          gameOver();
+          return true;
+        }
+        // 根据返回的索引显示小球, 并判断是否进行同色消除
+        if(collBallIdx || collBallIdx === 0){
+          clearInterval(timer);
+          initBullet();
+          showBall(collBallIdx,bulletColor);
+          let sameColorBalls = [];
+          sameColorBalls = getConBallWithSameColor([collBallIdx]);
+          // 同色小球大于2, 进行同色消除
+          if(sameColorBalls.length > 2){
+            // 注意这个 if 里面的代码:
+            sameColorBalls.forEach(item => {
+              ballsData[item].opacity = 0;
+            });
+            let noConnectArr = traceConnect();
+            noConnectArr.forEach(item => {
+              ballsData[item].opacity = 0;
+            });
+
+            let dBalls = sameColorBalls.concat(noConnectArr);
+            let len = dBalls.length - 1;
+            for(let i = 0; i < len; i++){
+              dropOff(ballsData[dBalls[i]].ele);
+              // ballsData[dBalls[i]].opacity = 0;
+            }
+            dropOff(ballsData[dBalls[len]].ele, () => { 
+              // 最后一个小球掉落之后, 再将 isBulletMoving 置为 false
+              // 防止小球掉落过程中, 子弹移动而带来的 bug
+              isBulletMoving = false; 
+              isDropOff = false;
+            });
+            // ballsData[dBalls[len]].opacity = 0;
+
+            // 更新分数
+            count += len + 1;
+            oScore.innerText = count;
+          }else{
+            isBulletMoving = false;
+          }
+          return true;
+        }
+        bulletMove();
+      }, 1000 / 60);
+
+      function bulletMove(){
+        let x = oBullet.offsetLeft, y = oBullet.offsetTop;
+        // 碰到右边壁
+        if(x + flag * Math.sin(iAngle) * speed >= (oBallArea.offsetWidth - oBullet.offsetWidth)){
+          let distance = oBallArea.offsetWidth- oBullet.offsetWidth - x;
+          oBullet.style.left = oBallArea.offsetWidth - oBullet.offsetWidth + 'px';
+          oBullet.style.top = y -  Math.cos(iAngle) * distance / Math.sin(iAngle)  + 'px';
+          flag = -flag;
+          // 碰到左边壁
+        } else if(x + flag * Math.sin(iAngle) * speed <= 0){
+          let distance = x;
+          oBullet.style.left = 0 +'px';
+          oBullet.style.top = y -  Math.cos(iAngle) * distance / Math.sin(iAngle)  + 'px';
+          flag = -flag;
+        } else{
+          oBullet.style.left = x + flag * Math.sin(iAngle) * speed + 'px';
+          oBullet.style.top = y -  Math.cos(iAngle) * speed + 'px';
+        }
+      }
+
+      /**
+       * @description: 根据下次子弹移动是否碰到小球,返回应该显示的小球的索引
+       * @return {} false 这次未碰到小球
+       *            null 没有多余的位置放置小球, 预示着游戏结束
+       *            Number 应该显示的小球的索引
+       */      
+      function getBallCollisionIdx(){
+        let x = oBullet.offsetLeft, y = oBullet.offsetTop;
+        let _x = x + flag * Math.sin(iAngle) * speed;
+        let _y = y -  Math.cos(iAngle) * speed;
+        let collBalls = getCollisionBalls(_x, _y);
+        if(collBalls.length > 0){
+          let collBall = collBalls.reduce((acc,curr) => {
+            if(acc.distance > curr.distance){
+              acc = curr;
+            }
+            return acc;
+          })
+          
+          let siblings = getSiblingIdx(collBall.idx)
+                    .filter(i => (i !== null && ballsData[i].opacity === 0 && i > collBall.idx - 2))
+                    .map(i => ballsData[i]);
+
+          // 存储此次碰撞应该显示的小球的索引
+          let result = null;
+          if(siblings.length > 0){
+            result = siblings.reduce((acc,curr) => {
+              let aX = acc.left - _x,
+                  aY = acc.top - _y,
+                  cX = curr.left - _x,
+                  cY = curr.top - _y;
+              if((aX * aX + aY * aY) > (cX * cX + cY * cY)){
+                acc = curr;
+              }
+              return acc;
+            })
+          }
+
+          /**    太冗余, 而且会在碰撞角度比较刁钻的时候出现 bug
+          if(Math.abs(angel) <= 30 && isRightRowByIdx(collBall.idx - 1, collBall.idx, 0) ){
+            return collBall.idx - 1;
+          }
+          if(Math.abs(angel) >= 150 && isRightRowByIdx(collBall.idx + 1, collBall.idx, 0) ){
+            return collBall.idx + 1;
+          }
+          if(angel >= 30 && angel <= 90 && isRightRowByIdx(collBall.idx - 9, collBall.idx, -1) ){
+            return collBall.idx - 9;
+          }
+          if(angel >= 90 && angel <= 150 && isRightRowByIdx(collBall.idx - 10, collBall.idx, -1) ){
+            return collBall.idx - 10;
+          }
+          if(angel >= -90 && angel < -30 && isRightRowByIdx(collBall.idx + 9, collBall.idx, 1) ){
+            return collBall.idx + 9;
+          }
+          if(isRightRowByIdx(collBall.idx + 10, collBall.idx, 1)){
+            return collBall.idx + 10;
+          }
+          **/
+          
+          return result && result.idx;
+        }
+
+        // 需要首先判断是否触碰到小球, 再判断是否触碰到顶边, 否则会出现子弹一直替换某一个顶边小球 
+        if(_y < ballSize / 2){
+          let topBall = ballsData.slice(0, 10);
+          let collBall = topBall.reduce((acc,curr)=>{
+            if(Math.abs(acc.left - _x) > Math.abs(curr.left - _x)){
+              acc = curr;
+            }
+            return acc;
+          })
+          return collBall.idx;
+        }
+        return false;
+      }
+
+      /**
+       * @description: 根据下次子弹运动到的坐标, 返回被碰撞到的小球的数组
+       * @param {Number} _x 下次子弹运动到的 x 坐标
+       * @param {Number} _y 下次子弹运动到的 y 坐标
+       * @return {Array} 被碰撞到的小球的数组
+       */      
+      function getCollisionBalls(_x, _y){
+        let balls = ballsData.filter(item => item.opacity === 1);
+        return balls.map(item => {
+          let a = item.left - _x,
+              b = item.top - _y,
+              distance = a * a + b * b;
+          if(distance <= ballSize * ballSize){
+            return{
+              distance,
+              idx: item.idx 
+            }
+          }
+          return null;
+        }).filter(item => item !== null);
+      }
+    })
+    init();
+    initArrow();
+    initBullet();
+
+    /**
+     * @description: 根据索引显示对应的小球
+     * @param {*} idx 索引号
+     * @param {*} bulletColor 子弹的颜色
+     */    
+    function showBall(idx,bulletColor){
+      ballsData[idx].opacity = 1;
+      ballsData[idx].ele.style.top = ballsData[idx].top + 'px';
+      ballsData[idx].ele.style.left = ballsData[idx].left + 'px';
+      ballsData[idx].ele.style.opacity = 1;
+      ballsData[idx].ele.style.backgroundColor = bulletColor ? bulletColor : randomColor();
+    }
+    /**
+     * @description: 每隔一定时间增加一定数量的小球
+     */    
+    function getShowBall(){
+      if(!isStart){
+        clearInterval(inteval);
+        return false;
+      }
+      clearInterval(inteval);
+      inteval = setInterval(function(){
+        // 如果存在小球正在掉落 或 子弹在移动就不增加
+        // 这样会有点不合适, 但不这样判断会出bug, 即有些小球再也无法显示出来
+        if(isDropOff || isBulletMoving){ 
+          return false;
+        }
+        let balls = ballsData.filter(item => item.opacity === 0).slice(0,6);
+        if(balls.length < 6){
+          gameOver();
+          clearInterval(inteval);
+          return false;
+        }
+        balls.forEach((item) => {
+          showBall(item.idx);
+          item.opacity === 1;
+        })
+      }, 5000);
+    }
+    /**
+     * @description: 提示游戏结束
+     */    
+    function gameOver(){
+      if(!isStart){
+        return false;
+      }
+      isBulletMoving = false;
+      isStart = false;
+      alert('Game Over');
+    }
+  </script>
+</body>
+</html>
